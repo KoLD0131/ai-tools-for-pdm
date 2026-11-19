@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Кто выгуливает Бориса</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: "Segoe UI", sans-serif;
+      line-height: 1.4;
+      background: #f3efe6;
+      color: #241c14;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 24px 16px 40px;
+    }
+
+    header, main {
+      width: min(1040px, 100%);
+      margin: 0 auto;
+    }
+
+    header { margin-bottom: 20px; }
+
+    .office {
+      margin: 0 0 4px;
+      font-size: 0.9rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    h1, h2 { margin: 0; font-weight: 650; }
+
+    h1 { font-size: 2rem; }
+
+    #today {
+      margin: 8px 0 0;
+      font-size: 1.15rem;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 300px;
+      gap: 16px;
+      align-items: start;
+    }
+
+    section, aside, .slot {
+      background: #fffdf8;
+      border: 1px solid #e2d8c8;
+      border-radius: 16px;
+    }
+
+    section, aside { padding: 16px; }
+
+    h2 { margin-bottom: 12px; font-size: 1.15rem; }
+
+    .slots {
+      display: grid;
+      gap: 10px;
+    }
+
+    .slot {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+    }
+
+    .slot-free { border-color: #b7c9a8; }
+
+    .slot-busy {
+      background: #f4e7cf;
+      border-color: #c6a15a;
+    }
+
+    .slot-time {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+
+    .slot-state {
+      margin: 0;
+      font-size: 0.95rem;
+    }
+
+    .slot form, #feeding-form {
+      display: grid;
+      gap: 8px;
+    }
+
+    label { display: grid; gap: 4px; font-size: 0.95rem; }
+
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #cfc3b2;
+      border-radius: 10px;
+      font: inherit;
+    }
+
+    button {
+      width: fit-content;
+      padding: 10px 14px;
+      border: 0;
+      border-radius: 999px;
+      background: #2f6f4e;
+      color: #fff;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .error {
+      margin: 0;
+      color: #8a2f1b;
+    }
+
+    .feeding-name, .feeding-time { margin: 0; }
+
+    .feeding-name { font-size: 1.15rem; font-weight: 700; }
+
+    @media (max-width: 760px) {
+      body { padding: 16px 12px 28px; }
+      h1 { font-size: 1.6rem; }
+      main { grid-template-columns: 1fr; }
+      button { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <p class="office">Догяндекс</p>
+    <h1>Кто выгуливает Бориса</h1>
+    <p id="today"></p>
+  </header>
+  <main>
+    <section aria-labelledby="walks-title">
+      <h2 id="walks-title">Прогулки</h2>
+      <div class="slots" id="slots"></div>
+    </section>
+    <aside aria-labelledby="feeding-title">
+      <h2 id="feeding-title">Последнее кормление</h2>
+      <div id="feeding-card">
+        <p id="feeding-empty">Пока никто не отметил кормление.</p>
+      </div>
+      <form id="feeding-form">
+        <label>
+          ФИО
+          <input name="name" autocomplete="name" placeholder="Илья Примеров">
+        </label>
+        <button type="submit">Отметить кормление</button>
+        <p class="error" id="feeding-error" hidden></p>
+      </form>
+    </aside>
+  </main>
+  <script>
+    const slotTimes = ["09:00", "11:00", "13:00", "15:00", "17:00"];
+    const slotsRoot = document.querySelector("#slots");
+    const feedingCard = document.querySelector("#feeding-card");
+    const feedingForm = document.querySelector("#feeding-form");
+    const feedingError = document.querySelector("#feeding-error");
+
+    const today = new Intl.DateTimeFormat("ru-RU", {
+      timeZone: "Europe/Moscow",
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric"
+    }).format(new Date());
+    document.querySelector("#today").textContent = today.charAt(0).toUpperCase() + today.slice(1);
+
+    function cleanName(value) {
+      return value.trim().replace(/\s+/g, " ");
+    }
+
+    function renderSlot(time) {
+      const slot = document.createElement("article");
+      slot.className = "slot slot-free";
+      slot.dataset.time = time;
+      slot.innerHTML = `
+        <p class="slot-time"></p>
+        <p class="slot-state">Свободно</p>
+        <form>
+          <label>
+            ФИО
+            <input name="name" autocomplete="name" placeholder="Анна Тестова">
+          </label>
+          <button type="submit">Записаться</button>
+          <p class="error" hidden></p>
+        </form>
+      `;
+      slot.querySelector(".slot-time").textContent = time;
+      slot.querySelector("form").addEventListener("submit", (event) => {
+        event.preventDefault();
+        const input = slot.querySelector("input");
+        const error = slot.querySelector(".error");
+        const name = cleanName(input.value);
+        error.hidden = true;
+        if (!name) {
+          error.hidden = false;
+          error.textContent = "Введите ФИО.";
+          input.focus();
+          return;
+        }
+        slot.className = "slot slot-busy";
+        slot.innerHTML = `
+          <p class="slot-time"></p>
+          <p class="slot-state">Занято</p>
+          <p class="slot-name"></p>
+        `;
+        slot.querySelector(".slot-time").textContent = time;
+        slot.querySelector(".slot-name").textContent = name;
+      });
+      return slot;
+    }
+
+    slotTimes.forEach((time) => slotsRoot.append(renderSlot(time)));
+
+    feedingForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const name = cleanName(feedingForm.elements.name.value);
+      feedingError.hidden = true;
+      if (!name) {
+        feedingError.hidden = false;
+        feedingError.textContent = "Введите ФИО.";
+        feedingForm.elements.name.focus();
+        return;
+      }
+      const fedAt = new Intl.DateTimeFormat("ru-RU", {
+        timeZone: "Europe/Moscow",
+        day: "numeric",
+        month: "long",
+        hour: "2-digit",
+        minute: "2-digit"
+      }).format(new Date());
+      feedingCard.replaceChildren();
+      const nameNode = document.createElement("p");
+      nameNode.className = "feeding-name";
+      nameNode.textContent = name;
+      const timeNode = document.createElement("p");
+      timeNode.className = "feeding-time";
+      timeNode.textContent = fedAt;
+      feedingCard.append(nameNode, timeNode);
+      feedingForm.reset();
+    });
+  </script>
+</body>
+</html>
