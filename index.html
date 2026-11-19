@@ -27,11 +27,26 @@
 
     header { margin-bottom: 20px; }
 
-    .office {
-      margin: 0 0 4px;
-      font-size: 0.9rem;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 0 0 16px;
+    }
+
+    .logo-mark {
+      width: 52px;
+      height: 52px;
+      flex: none;
+    }
+
+    .logo-name {
+      margin: 0;
+      color: #1a1a1a;
+      font-size: 1.45rem;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      line-height: 1;
     }
 
     h1, h2 { margin: 0; font-weight: 650; }
@@ -127,6 +142,8 @@
     @media (max-width: 760px) {
       body { padding: 16px 12px 28px; }
       h1 { font-size: 1.6rem; }
+      .logo-mark { width: 44px; height: 44px; }
+      .logo-name { font-size: 1.25rem; }
       main { grid-template-columns: 1fr; }
       button { width: 100%; }
     }
@@ -134,7 +151,19 @@
 </head>
 <body>
   <header>
-    <p class="office">Догяндекс</p>
+    <div class="logo">
+      <svg class="logo-mark" viewBox="0 0 64 64" aria-hidden="true">
+        <rect width="64" height="64" rx="18" fill="#F5C400"/>
+        <g fill="#1A1A1A">
+          <circle cx="16" cy="24" r="6"/>
+          <circle cx="28" cy="15" r="6"/>
+          <circle cx="42" cy="15" r="6"/>
+          <circle cx="52" cy="26" r="5.5"/>
+          <ellipse cx="33" cy="42" rx="14" ry="11"/>
+        </g>
+      </svg>
+      <p class="logo-name">Догяндекс</p>
+    </div>
     <h1>Кто выгуливает Бориса</h1>
     <p id="today"></p>
   </header>
