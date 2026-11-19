@@ -1,0 +1,7 @@
+{
+  "name": "kto-vygulivaet-borisa",
+  "private": true,
+  "scripts": {
+    "start": "node server.js"
+  }
+}

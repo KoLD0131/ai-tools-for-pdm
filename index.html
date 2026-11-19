@@ -170,6 +170,7 @@
   <main>
     <section aria-labelledby="walks-title">
       <h2 id="walks-title">Прогулки</h2>
+      <p class="error" id="notice" hidden></p>
       <div class="slots" id="slots"></div>
     </section>
     <aside aria-labelledby="feeding-title">
@@ -188,46 +189,81 @@
     </aside>
   </main>
   <script>
-    const slotTimes = ["09:00", "11:00", "13:00", "15:00", "17:00"];
     const slotsRoot = document.querySelector("#slots");
     const feedingCard = document.querySelector("#feeding-card");
     const feedingForm = document.querySelector("#feeding-form");
     const feedingError = document.querySelector("#feeding-error");
-
-    const today = new Intl.DateTimeFormat("ru-RU", {
-      timeZone: "Europe/Moscow",
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-      year: "numeric"
-    }).format(new Date());
-    document.querySelector("#today").textContent = today.charAt(0).toUpperCase() + today.slice(1);
+    const notice = document.querySelector("#notice");
 
     function cleanName(value) {
       return value.trim().replace(/\s+/g, " ");
     }
 
-    function renderSlot(time) {
-      const slot = document.createElement("article");
-      slot.className = "slot slot-free";
-      slot.dataset.time = time;
-      slot.innerHTML = `
-        <p class="slot-time"></p>
-        <p class="slot-state">Свободно</p>
-        <form>
-          <label>
-            ФИО
-            <input name="name" autocomplete="name" placeholder="Анна Тестова">
-          </label>
-          <button type="submit">Записаться</button>
-          <p class="error" hidden></p>
-        </form>
+    function showNotice(message) {
+      notice.hidden = !message;
+      notice.textContent = message || "";
+    }
+
+    function formatFedAt(iso) {
+      return new Intl.DateTimeFormat("ru-RU", {
+        timeZone: "Europe/Moscow",
+        day: "numeric",
+        month: "long",
+        hour: "2-digit",
+        minute: "2-digit"
+      }).format(new Date(iso));
+    }
+
+    function renderFeeding(feeding) {
+      feedingCard.replaceChildren();
+      if (!feeding) {
+        const empty = document.createElement("p");
+        empty.id = "feeding-empty";
+        empty.textContent = "Пока никто не отметил кормление.";
+        feedingCard.append(empty);
+        return;
+      }
+      const nameNode = document.createElement("p");
+      nameNode.className = "feeding-name";
+      nameNode.textContent = feeding.employeeName;
+      const timeNode = document.createElement("p");
+      timeNode.className = "feeding-time";
+      timeNode.textContent = formatFedAt(feeding.fedAt);
+      feedingCard.append(nameNode, timeNode);
+    }
+
+    function renderSlot(slot) {
+      const article = document.createElement("article");
+      article.className = slot.bookedBy ? "slot slot-busy" : "slot slot-free";
+      article.dataset.time = slot.time;
+      const timeNode = document.createElement("p");
+      timeNode.className = "slot-time";
+      timeNode.textContent = slot.time;
+      const stateNode = document.createElement("p");
+      stateNode.className = "slot-state";
+      article.append(timeNode, stateNode);
+      if (slot.bookedBy) {
+        stateNode.textContent = "Занято";
+        const nameNode = document.createElement("p");
+        nameNode.className = "slot-name";
+        nameNode.textContent = slot.bookedBy;
+        article.append(nameNode);
+        return article;
+      }
+      stateNode.textContent = "Свободно";
+      const form = document.createElement("form");
+      form.innerHTML = `
+        <label>
+          ФИО
+          <input name="name" autocomplete="name" placeholder="Анна Тестова">
+        </label>
+        <button type="submit">Записаться</button>
+        <p class="error" hidden></p>
       `;
-      slot.querySelector(".slot-time").textContent = time;
-      slot.querySelector("form").addEventListener("submit", (event) => {
+      form.addEventListener("submit", async (event) => {
         event.preventDefault();
-        const input = slot.querySelector("input");
-        const error = slot.querySelector(".error");
+        const input = form.elements.name;
+        const error = form.querySelector(".error");
         const name = cleanName(input.value);
         error.hidden = true;
         if (!name) {
@@ -236,21 +272,45 @@
           input.focus();
           return;
         }
-        slot.className = "slot slot-busy";
-        slot.innerHTML = `
-          <p class="slot-time"></p>
-          <p class="slot-state">Занято</p>
-          <p class="slot-name"></p>
-        `;
-        slot.querySelector(".slot-time").textContent = time;
-        slot.querySelector(".slot-name").textContent = name;
+        const response = await fetch("/api/bookings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ slotTime: slot.time, name })
+        });
+        const payload = await response.json();
+        if (response.status === 409) {
+          showNotice(payload.error);
+          renderState(payload.state);
+          return;
+        }
+        if (!response.ok) {
+          error.hidden = false;
+          error.textContent = payload.error || "Не удалось записать.";
+          return;
+        }
+        showNotice("");
+        renderState(payload);
       });
-      return slot;
+      article.append(form);
+      return article;
     }
 
-    slotTimes.forEach((time) => slotsRoot.append(renderSlot(time)));
+    function renderState(state) {
+      document.querySelector("#today").textContent = state.dateLabel;
+      slotsRoot.replaceChildren(...state.slots.map(renderSlot));
+      renderFeeding(state.feeding);
+    }
 
-    feedingForm.addEventListener("submit", (event) => {
+    async function loadState() {
+      const response = await fetch("/api/state");
+      if (!response.ok) {
+        showNotice("Не удалось загрузить записи.");
+        return;
+      }
+      renderState(await response.json());
+    }
+
+    feedingForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const name = cleanName(feedingForm.elements.name.value);
       feedingError.hidden = true;
@@ -260,23 +320,22 @@
         feedingForm.elements.name.focus();
         return;
       }
-      const fedAt = new Intl.DateTimeFormat("ru-RU", {
-        timeZone: "Europe/Moscow",
-        day: "numeric",
-        month: "long",
-        hour: "2-digit",
-        minute: "2-digit"
-      }).format(new Date());
-      feedingCard.replaceChildren();
-      const nameNode = document.createElement("p");
-      nameNode.className = "feeding-name";
-      nameNode.textContent = name;
-      const timeNode = document.createElement("p");
-      timeNode.className = "feeding-time";
-      timeNode.textContent = fedAt;
-      feedingCard.append(nameNode, timeNode);
+      const response = await fetch("/api/feedings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name })
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        feedingError.hidden = false;
+        feedingError.textContent = payload.error || "Не удалось отметить кормление.";
+        return;
+      }
       feedingForm.reset();
+      renderState(payload);
     });
+
+    loadState();
   </script>
 </body>
 </html>
